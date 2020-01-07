@@ -14,7 +14,35 @@ tokenDict={
 
 @app.route('/restaurants')
 def restaurants():
-    return json.dumps(["南门","食堂","资本","北京华联"])
+    db=get_db()
+    c=db.cursor()
+    sql="""
+    SELECT 
+        a.id as id,
+        b.name as parent_name,
+        a.name as name 
+    FROM restaurants a 
+    JOIN restaurants b 
+        ON a.parent=b.id 
+    UNION 
+        SELECT 
+            id,
+            name AS parent_name,
+            name 
+        FROM restaurants c 
+        WHERE 
+            parent IS NULL AND 
+            NOT EXISTS (
+                SELECT * FROM restaurants WHERE parent=c.id
+            )
+    """
+    c.execute(sql)
+    d={}
+    for item in c.fetchall():
+        d.setdefault(item[1],{"name":item[1],"children":[]})
+        d[item[1]]['children'].append(item[2])
+    print(d.values())
+    return json.dumps(list(d.values()))
 
 @app.route('/login',methods=["POST"])
 def login():
@@ -127,6 +155,14 @@ def init_db():
         "username"	TEXT,
         "password"	TEXT NOT NULL,
         PRIMARY KEY("username")
+    );
+    '''
+    c.execute(sql)
+    sql='''
+    CREATE TABLE IF NOT EXISTS "restaurants" (
+        "id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+        "name"	TEXT,
+        "parent"	INTEGER
     );
     '''
     db.commit()
